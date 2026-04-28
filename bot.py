@@ -10,6 +10,10 @@ TOKEN = os.getenv("TELEGRAM_TOKEN", "8772666643:AAEfEnWC8dX4Nt5bRGXclvV8N4hLR09T
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "-1003906962727")
 URL_API = os.getenv("API_URL", "https://aviator-round-production.up.railway.app/api/aviator/rounds/1?limit=30")
 
+# Parámetros para los mensajes (pueden ser modificados por el usuario)
+STAKE_1 = 0.01  # 1%
+STAKE_2 = 0.027 # 2.7%
+
 bot = telebot.TeleBot(token=TOKEN, parse_mode='MARKDOWN')
 
 def enviar_telegram(texto):
@@ -175,8 +179,42 @@ def on_entrada_terminada(multiplicador: float, era_gale: bool):
 
 
 # =============================================================================
-# MENSAJES ADICIONALES
+# MENSAJES CON ESTILO ULTRA-CONSERVADOR
 # =============================================================================
+
+def msg_entrada():
+    msg = "🚀 *ENTRADA DETECTADA*\n\n"
+    msg += f"🎯 Punto de Retiro: *{CUOTA:.2f}x*\n"
+    msg += f"💰 Inversión sugerida: *{STAKE_1*100:.1f}%*\n\n"
+    msg += "⚠️ *Ejecutar en la siguiente ronda*"
+    enviar_telegram(msg)
+
+def msg_gale_inteligente():
+    msg = "⚡ *SEÑAL + GALE*\n\n"
+    msg += "Entramos con apuesta base + Gale juntos.\n"
+    msg += f"💰 Inversión: *{(STAKE_1 + STAKE_2)*100:.1f}%*\n"
+    msg += f"🎯 Retiro: *{CUOTA:.2f}x*"
+    enviar_telegram(msg)
+
+def msg_win_directo(valor):
+    msg = f"✅ *¡WIN {valor:.2f}x!*\n"
+    msg += "Estrategia aplicada con éxito."
+    enviar_telegram(msg)
+
+def msg_win_gale(valor):
+    msg = f"✅ *¡WIN GALE {valor:.2f}x!*\n"
+    msg += "Estrategia aplicada con éxito."
+    enviar_telegram(msg)
+
+def msg_loss(valor):
+    msg = f"❌ *CICLO CERRADO {valor:.2f}x*\n"
+    msg += "Gale fallido. Seguimos analizando el mercado."
+    enviar_telegram(msg)
+
+def msg_e1_perdio(valor):
+    msg = f"⏳ *E1 PERDIÓ {valor:.2f}x*\n"
+    msg += "Esperando próxima señal para aplicar Gale."
+    enviar_telegram(msg)
 
 def msg_resumen():
     global history_signals
@@ -184,10 +222,11 @@ def msg_resumen():
     msg = "📊 *RESUMEN DE OPERACIONES*\n\n"
     for s in history_signals:
         icon = "✅" if s['status'] == 'win' else "❌"
-        g_text = "Directo" if not s['era_gale'] else "G1"
+        g_text = "Directo" if not s['era_gale'] else "GALE"
         msg += f"{icon} Multiplicador: {s['res']:.2f}x ({g_text})\n"
+    msg += f"\n📈 *Resultado:* {sum(1 for s in history_signals if s['status'] == 'win')}W - {sum(1 for s in history_signals if s['status'] == 'loss')}L"
     enviar_telegram(msg)
-    history_signals = []
+    history_signals = [] # Resetear tras enviar resumen
 
 
 # =============================================================================
@@ -238,25 +277,17 @@ def ejecutar_bot():
             if apuesta_activa == "E1":
                 on_entrada_terminada(ronda_val, era_gale=False)
                 if ronda_val >= CUOTA:
-                    msg = f"✅ *¡WIN {ronda_val:.2f}x!*\n"
-                    msg += "Estrategia aplicada con éxito."
-                    enviar_telegram(msg)
+                    msg_win_directo(ronda_val)
                 else:
-                    msg = "⏳ *E1 PERDIÓ*\n"
-                    msg += "Esperando próxima señal para aplicar Gale."
-                    enviar_telegram(msg)
+                    msg_e1_perdio(ronda_val)
                 apuesta_activa = None
                 
             elif apuesta_activa == "GALE":
                 on_entrada_terminada(ronda_val, era_gale=True)
                 if ronda_val >= CUOTA:
-                    msg = f"✅ *¡WIN {ronda_val:.2f}x! (G1)*\n"
-                    msg += "Estrategia aplicada con éxito."
-                    enviar_telegram(msg)
+                    msg_win_gale(ronda_val)
                 else:
-                    msg = f"❌ *CICLO CERRADO {ronda_val:.2f}x*\n"
-                    msg += "Gale fallido. Seguimos analizando el mercado."
-                    enviar_telegram(msg)
+                    msg_loss(ronda_val)
                 apuesta_activa = None
                 
             # Reporte de resumen cada 10 señales
@@ -269,18 +300,10 @@ def ejecutar_bot():
             # 3. Evaluar si se debe entrar en la ronda que viene
             decision = on_ronda_por_comenzar()
             if decision == "SEÑAL":
-                msg = "🚀 *ENTRADA DETECTADA*\n\n"
-                msg += f"🎯 Punto de Retiro: *{CUOTA:.2f}x*\n"
-                msg += "💰 Inversión sugerida: *1.0%*\n\n"
-                msg += "⚠️ *Ejecutar en la siguiente ronda*"
-                enviar_telegram(msg)
+                msg_entrada()
                 apuesta_activa = "E1"
             elif decision == "SEÑAL_GALE":
-                msg = "⚠️ *MARTINGALA 1*\n\n"
-                msg += "El avión se fue antes. Entramos de nuevo.\n"
-                msg += "💰 Inversión: *2.7%*\n"
-                msg += f"🎯 Retiro: *{CUOTA:.2f}x*"
-                enviar_telegram(msg)
+                msg_gale_inteligente()
                 apuesta_activa = "GALE"
                 
         except Exception as e:
